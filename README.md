@@ -25,13 +25,25 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ### Requirements:
 - [Node.js and NPM](https://nodejs.org/en/download)
-- [Tampermonkey](https://www.tampermonkey.net/)
-- [git](https://git-scm.com/downloads) (optional, but recommended)
+   - Use LTS Version of Node
+   - Download Windows Installer (.msi) with express installation
+- [git](https://git-scm.com/downloads)
+   - optional but highly recommended for receiving future updates
+- Brave browser (recommended) or Google Chrome
+
+Check if you have these installed by opening a terminal and separately entering `git -v` and `node -v`. These should output the version of node/git that you have installed. If any error comes out it means you do not have these correctly installed.
+ 
 ### Installation:
-1. Install the extension on each browser window with an account you want to be used by wplacer and to automatically solve Turnstiles (CAPTCHAs) by going to the extensions page of your browser, turning on developer mode, pressing load unpacked, and then selecting the LOAD_UNPACKED folder included with wplacer.
-2. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub (not recommended).
-3. In the terminal, navigate to the project directory and install the dependencies with `npm i`.
-- If you'd like, you can change the host and port of the local server by creating a `.env` file.
+#### 1. Start by downloading the code from this repository.
+   - If using [git](https://git-scm.com/downloads): find a folder you want to store this in, [navigate there in the terminal](https://johnwargo.com/posts/2024/launch-windows-terminal/) and then run `git clone https://github.com/luluwaffless/wplacer.git`
+   - Otherwise, download the ZIP directly from GitHub (not recommended).
+#### 2. Install the wplacer extension on your browser.
+   - This is not published on the Chrome Web Store so manual installation is needed
+   - Open your browser settings, open the "Extensions" menu and then turn on "Enable Developer Mode". This should give you the option to install the wplacer extension. Click on "Load Unpacked", find the folder where you downloaded the code and select the `LOAD_UNPACKED` folder itself (not the folder contents)
+   -  This extension is for sending tokens to your local server and automatically solving Turnstiles (CAPTCHAs)
+   -  If you are using multiple accounts, do this for every browser profile you have.
+#### 3. In the terminal, install the dependencies by running `npm i`.
+   - If you'd like, you can change the host and port of the local server by creating a `.env` file.
 ### Usage:
 1. To start the bot, run `npm start` in the terminal.
 2. Open the URL printed in the console (usually `http://127.0.0.1/`) in your browser.
@@ -66,6 +78,7 @@ And to our amazing contributors!
 ### License 📜
 
 [GNU AGPL v3](LICENSE)
+
 
 
 
