@@ -74,7 +74,11 @@ class WPlacer {
         for (const cookie of Object.keys(this.cookies)) {
             jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
         }
-        this.browser = new Impit({ cookieJar: jar, browser: "chrome", ignoreTlsErrors: true });
+        this.browser = new Impit({
+            cookieJar: jar,
+            browser: "chrome",
+            ignoreTlsErrors: true,
+        });
         await this.loadUserInfo();
         return this.userInfo;
     };
@@ -92,7 +96,10 @@ class WPlacer {
             }
             throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
         } catch (e) {
-            if (bodyText.includes('Error 1015')) throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
+            if (bodyText.includes('1015')) {
+                logUserError(new Error("(1015) Rate limit detected when accessing /me endpoint."), 0, "SYSTEM", "load user info");
+                await sleep(10000);
+            }
             if (bodyText.includes('502') && bodyText.includes('gateway')) throw new Error(`(502) Bad Gateway: The server is temporarily unavailable. Please try again later.`);
             throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText.substring(0, 150)}..."`);
         }
@@ -173,8 +180,10 @@ class WPlacer {
             await sleep(40000);
             return { painted: 0 };
         }
-        if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+        if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) {
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limit detected (1015). Waiting 60 seconds before retrying...`);
+            await sleep(10000);
+            return { painted: 0 };
         }
         throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
@@ -325,7 +334,8 @@ class WPlacer {
             return true;
         }
         if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limit detected during purchase (1015). Waiting 10 seconds before retrying...`);
+            await sleep(10000);
         }
         throw Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
     };
@@ -362,6 +372,7 @@ let currentSettings = {
     keepAliveCooldown: 5000, dropletReserve: 0, antiGriefStandby: 600000,
     drawingDirection: 'ttb', drawingOrder: 'linear', chargeThreshold: 0.5,
     outlineMode: false, interleavedMode: false, skipPaintedPixels: false, accountCheckCooldown: 0,
+    tokenRequestCooldown: 5000
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
     currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
@@ -378,6 +389,7 @@ const TokenManager = {
     tokenPromise: null,
     resolvePromise: null,
     isTokenNeeded: false,
+    maxQueueSize: 8, // Maximum number of tokens to keep
 
     getToken() {
         if (this.tokenQueue.length > 0) {
@@ -393,7 +405,17 @@ const TokenManager = {
         return this.tokenPromise;
     },
     setToken(t) {
+        // Add new token to the end
+        this.tokenQueue.push(t);
+
         log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
+
+        // If queue exceeds max size, remove oldest tokens
+        if (this.tokenQueue.length > this.maxQueueSize) {
+            const removed = this.tokenQueue.splice(0, this.tokenQueue.length - this.maxQueueSize);
+            log('SYSTEM', 'wplacer', `🔄 TOKEN_MANAGER: Queue limit reached. Removed ${removed.length} oldest tokens.`);
+        }
+
         this.isTokenNeeded = false;
         this.tokenQueue.push(t);
         if (this.resolvePromise) {
@@ -411,10 +433,14 @@ const TokenManager = {
 // --- Error Handling ---
 function logUserError(error, id, name, context) {
     const message = error.message || "An unknown error occurred.";
-    if (message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error.name === "SuspensionError") {
-        log(id, name, `❌ Failed to ${context}: ${message}`);
+    const match = message.match(/\(([^)]+)\)/);
+    const code = match ? match[1] : null;
+    if (message.includes("(500)") || message.includes("(502)") || error.name === "SuspensionError") {
+        log(id, name, `❌ ${code ? code : ""} Failed to ${context}: ${message}`);
+    } else if (message.includes("1015")) {
+        log(id, name, `❌ 1015 - Failed to ${context}: ${message}`);
     } else {
-        log(id, name, `❌ Failed to ${context}`, error);
+        log(id, name, `❌ ${code ? code : ""} Failed to ${context}`, error);
     }
 }
 
@@ -480,7 +506,16 @@ class TemplateManager {
         while (!paintingComplete && this.running) {
             try {
                 wplacer.token = await TokenManager.getToken();
-                await wplacer.paint();
+                const pixelsPainted = await wplacer.paint();
+
+                // Broadcast paint update
+                broadcastPaintUpdate({
+                    template: this.name,
+                    user: wplacer.userInfo,
+                    pixelsPainted,
+                    pixelsRemaining: this.pixelsRemaining,
+                    timestamp: Date.now()
+                });
                 paintingComplete = true;
             } catch (error) {
                 if (error.name === "SuspensionError") {
@@ -491,9 +526,9 @@ class TemplateManager {
                     return; // End this user's turn
                 }
                 if (error.message === 'REFRESH_TOKEN') {
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Trying next token...`);
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Trying next token in 5s...`);
                     TokenManager.invalidateToken();
-                    await this.sleep(1000);
+                    await this.sleep(5000);
                 } else {
                     throw error;
                 }
@@ -513,6 +548,7 @@ class TemplateManager {
                 try {
                     await checkWplacer.login(users[this.masterId].cookies);
                     this.pixelsRemaining = await checkWplacer.pixelsLeft();
+                    await this.sleep(5000);
                 } catch (error) {
                     logUserError(error, this.masterId, this.masterName, "check pixels left");
                     await this.sleep(60000);
@@ -855,3 +891,32 @@ const keepAlive = async () => {
         setInterval(keepAlive, 20 * 60 * 1000); // 20 minutes
     });
 })();
+
+// Track SSE clients
+const clients = new Set();
+
+// Add SSE endpoint
+app.get('/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Send initial connection confirmation
+    res.write('event: connected\ndata: Connected to paint events\n\n');
+
+    // Add client to set
+    clients.add(res);
+
+    // Remove client on connection close
+    req.on('close', () => {
+        clients.delete(res);
+    });
+});
+
+// Helper function to broadcast paint updates
+function broadcastPaintUpdate(data) {
+    const eventData = `event: paint\ndata: ${JSON.stringify(data)}\n\n`;
+    clients.forEach(client => {
+        client.write(eventData);
+    });
+}

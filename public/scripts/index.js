@@ -201,14 +201,14 @@ const loadTemplates = async (f) => {
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const TILE_SIZE = 1000;
     const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
-    
+
     const startX = txVal * TILE_SIZE + pxVal - radius;
     const startY = tyVal * TILE_SIZE + pyVal - radius;
     const displayWidth = width + (radius * 2);
     const displayHeight = height + (radius * 2);
     const endX = startX + displayWidth;
     const endY = startY + displayHeight;
-    
+
     const startTileX = Math.floor(startX / TILE_SIZE);
     const startTileY = Math.floor(startY / TILE_SIZE);
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
@@ -260,7 +260,7 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         const canvasX = templateX + radius;
         const canvasY = templateY + radius;
         const canvasIdx = (canvasY * displayWidth + canvasX) * 4;
-        
+
         if (b[canvasIdx + 3] === 0) continue;
 
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
@@ -465,20 +465,43 @@ openManageUsers.addEventListener("click", () => {
             user.className = 'user';
             user.id = `user-${id}`;
             const expirationDate = users[id].expirationDate;
-            const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
+            let expirationStr = "N/A"
+
+            if (expirationDate) {
+                const targetDate = new Date(expirationDate * 1000);
+                const now = new Date();
+                const diff = targetDate - now;
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                expirationStr = `${days}d ${hours}h`;
+            }
 
             user.innerHTML = `
                 <div class="user-info">
-                    <span>${users[id].name}</span>
-                    <span>(#${id})</span>
+                    <span class="user-name">${users[id].name}</span>
+                    <span class="user-id">#${id}</span>
                     <div class="user-stats">
-                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
-                        Expires: <b>${expirationStr}</b>
+                        <div>
+                            <img class="charges-icon" src="icons/charges.svg">
+                            <b><span class="current-charges">?</span></b>/<b><span class="max-charges">?</span></b>
+                        </div>
+                        <div>
+                            <img class="droplets-icon" src="icons/droplet.svg">
+                            <b><span class="current-droplets">?</span></b>
+                        </div>
+                        <div>
+                            <img class="level-icon" src="icons/level.svg">
+                            <b><span class="current-level">?</span></b> <span class="level-progress">(?%)</span>
+                        </div>
+                        <div>
+                            <img class="expires-icon" src="icons/expires.svg"> <b>${expirationStr}</b>
+                        </div>
                     </div>
                 </div>
                 <div class="user-actions">
-                    <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
+                    <button class="refresh-btn" title="Refresh User Info"><img src="icons/restart.svg"></button>
                     <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
+                    <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener("click", () => {
@@ -496,6 +519,41 @@ openManageUsers.addEventListener("click", () => {
                     }
                 );
             });
+            user.querySelector('.refresh-btn').addEventListener("click", async () => {
+                const infoSpans = user.querySelectorAll('.user-info > span');
+                const currentChargesEl = user.querySelector('.user-stats .current-charges');
+                const maxChargesEl = user.querySelector('.user-stats .max-charges');
+                const currentLevelEl = user.querySelector('.user-stats .current-level');
+                const levelProgressEl = user.querySelector('.level-progress');
+                const currentDropletsEl = user.querySelector('.user-stats .current-droplets');
+
+                infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+                try {
+                    const response = await axios.get(`/user/status/${id}`);
+                    const userInfo = response.data;
+
+                    const charges = Math.floor(userInfo.charges.count);
+                    const max = userInfo.charges.max;
+                    const level = Math.floor(userInfo.level);
+                    const progress = Math.round((userInfo.level % 1) * 100);
+
+                    currentChargesEl.textContent = charges;
+                    maxChargesEl.textContent = max;
+                    currentLevelEl.textContent = level;
+                    levelProgressEl.textContent = `(${progress}%)`;
+                    currentDropletsEl.textContent = userInfo.droplets;
+
+                    infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+                } catch (error) {
+                    currentChargesEl.textContent = "?";
+                    maxChargesEl.textContent = "?";
+                    currentLevelEl.textContent = "?";
+                    levelProgressEl.textContent = "(?%)";
+                    currentDropletsEl.textContent = "?";
+                    infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                    handleError(error);
+                }
+            })
             user.querySelector('.info-btn').addEventListener("click", async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
@@ -541,10 +599,11 @@ checkUserStatus.addEventListener("click", async () => {
     for (const userEl of userElements) {
         const id = userEl.id.split('-')[1];
         const infoSpans = userEl.querySelectorAll('.user-info > span');
-        const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
-        const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
-        const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+        const currentChargesEl = userEl.querySelector('.user-stats .current-charges');
+        const maxChargesEl = userEl.querySelector('.user-stats .max-charges');
+        const currentLevelEl = userEl.querySelector('.user-stats .current-level');
         const levelProgressEl = userEl.querySelector('.level-progress');
+        const currentDropletsEl = userEl.querySelector('.user-stats .current-droplets');
 
         infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
         try {
@@ -560,13 +619,14 @@ checkUserStatus.addEventListener("click", async () => {
             maxChargesEl.textContent = max;
             currentLevelEl.textContent = level;
             levelProgressEl.textContent = `(${progress}%)`;
+            currentDropletsEl.textContent = userInfo.droplets;
             totalCurrent += charges;
             totalMax += max;
 
             infoSpans.forEach(span => span.style.color = 'var(--success-color)');
         } catch (error) {
-            currentChargesEl.textContent = "ERR";
-            maxChargesEl.textContent = "ERR";
+            currentChargesEl.textContent = "?";
+            maxChargesEl.textContent = "?";
             currentLevelEl.textContent = "?";
             levelProgressEl.textContent = "(?%)";
             infoSpans.forEach(span => span.style.color = 'var(--error-color)');
@@ -696,8 +756,21 @@ openManageTemplates.addEventListener("click", () => {
                 const percent = Math.floor((completed / total) * 100);
 
                 const infoSpan = document.createElement('span');
-                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Pixels:</b> <span class="pixel-count">${completed} / ${total}</span>`;
+                infoSpan.innerHTML = `
+                    <b>Template Name:</b> ${t.name}
+                    <br>
+                    <b>Assigned Accounts:</b>
+                    <span class="assigned-accounts folded">${userListFormatted}</span>
+                    <b>Coordinates:</b> ${t.coords.join(", ")}
+                    <br>
+                    <b>Pixels:</b>
+                    <span class="pixel-count">${completed} / ${total}
+                    </span>`;
                 template.appendChild(infoSpan);
+
+                infoSpan.querySelector('.assigned-accounts').addEventListener('click', (e) => {
+                    e.target.classList.toggle('folded');
+                });
 
                 const progressBarContainer = document.createElement('div');
                 progressBarContainer.className = 'progress-bar-container';
@@ -898,4 +971,29 @@ tx.addEventListener('blur', () => {
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
+});
+
+paintEvents.on('paint', (data) => {
+    console.log('data :>', data)
+    if (data.pixelsPainted && data.user.id) {
+        const userElement = $(`user-${data.user.id}`);
+        const currentCharges = data.user.charges.count;
+        const currentDroplets = data.user.droplets
+
+        try {
+            userElement.querySelector('.current-charges').textContent = 0;
+            userElement.querySelector('.max-charges').textContent = data.user.charges.max;
+            userElement.querySelector('.current-level').textContent = Math.floor(data.user.level);
+            userElement.querySelector('.level-progress').textContent = `(${Math.round((data.user.level % 1) * 100)}%)`;
+            userElement.querySelector('.current-droplets').textContent = currentDroplets;
+            userElement.querySelectorAll('.user-info > span').forEach(span => span.style.color = 'var(--success-color)');
+
+            if (currentDroplets > 500) {
+                userElement.querySelector('.current-droplets').textContent = (currentDroplets + currentCharges) % 500
+                userElement.querySelector('.max-charges').textContent = data.user.charges.max + 5;
+            }
+        } catch (error) {
+            console.error("Failed to update user element:", error);
+        }
+    }
 });

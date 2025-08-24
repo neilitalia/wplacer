@@ -116,8 +116,8 @@ button {
 }
 
 button img {
-    width: 1.5em;
-    height: 1.5em;
+    width: 1.1em;
+    height: 1.1em;
     filter: brightness(0) invert(1);
 }
 
@@ -200,7 +200,7 @@ label {
 
 #userList {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 16px;
     margin-top: 24px;
     margin-bottom: 24px;
@@ -215,13 +215,18 @@ label {
     justify-content: space-between;
     align-items: flex-start;
     transition: background-color 0.2s ease, border-color 0.2s ease;
+    aspect-ratio: 1 / 1;
 }
 
 .user-info {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
     text-align: left;
-    gap: 8px;
+    gap: 4px;
+    height: 100%;
+    max-width: 80%;
 }
 
 .user-info span:first-of-type {
@@ -237,12 +242,14 @@ label {
 .user-actions {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
     align-items: flex-end;
+    justify-content: flex-end;
+    height: 100%;
 }
 
 .user-actions button {
-    padding: 8px;
+    padding: 4px 0 0 0;
     display: inline-flex;
     background: none;
     border: none;
@@ -259,6 +266,14 @@ label {
     opacity: 1;
 }
 
+.user-name {
+    max-width: 100%;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    display: block;
+    overflow: hidden;
+}
+
 .user-stats {
     font-size: 0.9rem;
     color: var(--text-secondary);
@@ -268,6 +283,10 @@ label {
 .user-stats b {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+.user-id {
+    margin-bottom: auto;
 }
 
 #chargeSummary {
@@ -522,4 +541,41 @@ input:checked + .slider:before {
 
 .hidden {
     display: none !important;
+}
+
+.charges-icon,
+.level-icon,
+.expires-icon,
+.droplets-icon {
+    width: 1.1em;
+    vertical-align: middle;
+}
+
+.refresh-btn {
+    filter: brightness(0) invert(1);
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.refresh-btn:hover {
+    opacity: 1;
+}
+
+.user-actions button.delete-btn {
+    margin-top: auto;
+}
+
+.assigned-accounts {
+    cursor: pointer;
+}
+
+.assigned-accounts:hover {
+    color: var(--text-primary);
+}
+
+.assigned-accounts.folded {
+    white-space: nowrap;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
