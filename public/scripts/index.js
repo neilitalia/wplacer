@@ -652,15 +652,6 @@ checkUserStatus.addEventListener("click", async () => {
                 const level = Math.floor(userInfo.level);
                 const progress = Math.round((userInfo.level % 1) * 100);
 
-                currentChargesEl.textContent = charges;
-                maxChargesEl.textContent = max;
-                currentLevelEl.textContent = level;
-                levelProgressEl.textContent = `(${progress}%)`;
-                currentDropletsEl.textContent = userInfo.droplets;
-                totalCurrent += charges;
-                totalMax += max;
-
-
                 if (userInfo.expirationDate) {
                     const targetDate = new Date(userInfo.expirationDate * 1000);
                     const now = new Date();
@@ -668,35 +659,41 @@ checkUserStatus.addEventListener("click", async () => {
                     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
                     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                     expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
-                } else {
-                    currentChargesEl.textContent = "?";
-                    maxChargesEl.textContent = "?";
-                    currentLevelEl.textContent = "?";
-                    currentDropletsEl.textContent = "?";
-                    levelProgressEl.textContent = "(?%)";
-                    infoSpans.forEach(span => span.style.color = 'var(--error-color)');
-                    infoSpans.forEach(span => span.style.color = 'var(--success-color)');
                 }
 
-            } catch (error) {
-                handleError(error);
-                // On general error, mark all as failed
-                userElements.forEach(userEl => {
-                    const infoSpans = userEl.querySelectorAll('.user-info > span');
-                    infoSpans.forEach(span => span.style.color = 'var(--error-color)');
-                });
-            }
-            if (cooldown > 0) {
-                await sleep(cooldown);
+                currentChargesEl.textContent = charges;
+                maxChargesEl.textContent = max;
+                currentLevelEl.textContent = level;
+                levelProgressEl.textContent = `(${progress}%)`;
+                currentDropletsEl.textContent = userInfo.droplets;
+                totalCurrent += charges;
+                totalMax += max;
+            } else {
+                currentChargesEl.textContent = "?";
+                maxChargesEl.textContent = "?";
+                currentLevelEl.textContent = "?";
+                currentDropletsEl.textContent = "?";
+                levelProgressEl.textContent = "(?%)";
+                expirationEl.textContent = "?";
+                infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
             }
         }
+    } catch (error) {
+        handleError(error);
+        // On general error, mark all as failed
+        userElements.forEach(userEl => {
+            const infoSpans = userEl.querySelectorAll('.user-info > span');
+            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+        });
+    }
 
-        totalCharges.textContent = totalCurrent;
-        totalMaxCharges.textContent = totalMax;
+    totalCharges.textContent = totalCurrent;
+    totalMaxCharges.textContent = totalMax;
 
-        checkUserStatus.disabled = false;
-        checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
-    });
+    checkUserStatus.disabled = false;
+    checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
+});
 
 openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
