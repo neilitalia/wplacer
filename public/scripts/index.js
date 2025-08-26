@@ -18,6 +18,7 @@ const convert = $("convert");
 const details = $("details");
 const size = $("size");
 const ink = $("ink");
+const premiumWarning = $("premiumWarning");
 const templateCanvas = $("templateCanvas");
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
@@ -35,6 +36,7 @@ const selectAllUsers = $("selectAllUsers");
 const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const antiGriefMode = $("antiGriefMode");
+const enableAutostart = $("enableAutostart");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
@@ -43,10 +45,9 @@ const stopAll = $("stopAll");
 const settings = $("settings");
 const drawingDirectionSelect = $("drawingDirectionSelect");
 const drawingOrderSelect = $("drawingOrderSelect");
+const pixelSkipSelect = $("pixelSkipSelect");
 const outlineMode = $("outlineMode");
-const interleavedMode = $("interleavedMode");
 const skipPaintedPixels = $("skipPaintedPixels");
-const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
 const accountCheckCooldown = $("accountCheckCooldown");
@@ -60,7 +61,12 @@ const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
-const usePaidColors = $("usePaidColors");
+const proxyEnabled = $("proxyEnabled");
+const proxyFormContainer = $("proxyFormContainer");
+const proxyRotationMode = $("proxyRotationMode");
+const proxyCount = $("proxyCount");
+const reloadProxiesBtn = $("reloadProxiesBtn");
+const logProxyUsage = $("logProxyUsage");
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -155,12 +161,14 @@ const colors = { ...basic_colors, ...premium_colors };
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
 const closest = color => {
     const [tr, tg, tb] = color.split(',').map(Number);
-    // only use basic_colors for closest match to keep current behavior
-    return basic_colors[Object.keys(basic_colors).reduce((closest, current) => {
-        const [cr, cg, cb] = current.split(',').map(Number);
-        const [clR, clG, clB] = closest.split(',').map(Number);
-        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
-    })];
+    // Search all available colors (basic and premium)
+    return Object.keys(colors).reduce((closestKey, currentKey) => {
+        const [cr, cg, cb] = currentKey.split(',').map(Number);
+        const [clR, clG, clB] = closestKey.split(',').map(Number);
+        const currentDistance = Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2);
+        const closestDistance = Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2);
+        return currentDistance < closestDistance ? currentKey : closestKey;
+    });
 };
 
 const drawTemplate = (template, canvas) => {
@@ -266,12 +274,14 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
         ctx.fillRect(canvasX, canvasY, 1, 1);
     }
+    previewCanvas.style.display = 'block';
 };
 
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
     let ink = 0;
+    let hasPremium = false;
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -280,18 +290,20 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                if (rgb == "158,189,255") matrix[x][y] = -1;
-                else {
-                    const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
+                if (rgb == "158,189,255") {
+                    matrix[x][y] = -1;
+                } else {
+                    const id = colors[rgb] || colors[closest(rgb)];
                     matrix[x][y] = id;
-                };
+                    if (id >= 32) hasPremium = true;
+                }
                 ink++;
             } else {
                 matrix[x][y] = 0;
             }
         }
     }
-    return { matrix, ink };
+    return { matrix, ink, hasPremium };
 };
 
 let currentTemplate = { width: 0, height: 0, data: [] };
@@ -310,13 +322,14 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink, hasPremium } = nearestimgdecoder(imageData, canvas.width, canvas.height);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
-                data: matrix
+                data: matrix,
+                hasPremium
             };
 
             canvas.remove();
@@ -334,12 +347,19 @@ const processEvent = () => {
             drawTemplate(template, templateCanvas);
             size.innerHTML = `${template.width}x${template.height}px`;
             ink.innerHTML = template.ink;
+            if (template.hasPremium) {
+                premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
+                premiumWarning.style.display = "block";
+            } else {
+                premiumWarning.style.display = "none";
+            }
+            templateCanvas.style.display = 'block';
+            previewCanvas.style.display = 'none';
             details.style.display = "block";
         });
     };
 };
 convertInput.addEventListener('change', processEvent);
-usePaidColors.addEventListener('change', processEvent);
 
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
@@ -371,6 +391,8 @@ const resetTemplateForm = () => {
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
     details.style.display = "none";
+    premiumWarning.style.display = "none";
+    previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
 };
 
@@ -395,7 +417,8 @@ templateForm.addEventListener('submit', async (e) => {
         userIds: selectedUsers,
         canBuyCharges: canBuyCharges.checked,
         canBuyMaxCharges: canBuyMaxCharges.checked,
-        antiGriefMode: antiGriefMode.checked
+        antiGriefMode: antiGriefMode.checked,
+        enableAutostart: enableAutostart.checked
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -600,69 +623,81 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
 
+    // Set all users to "checking" state
+    userElements.forEach(userEl => {
+        const infoSpans = userEl.querySelectorAll('.user-info > span');
+        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+    });
+
     let totalCurrent = 0;
     let totalMax = 0;
 
-    const { data: settings } = await axios.get('/settings');
-    const cooldown = settings.accountCheckCooldown || 0;
+    try {
+        const response = await axios.post('/users/status');
+        const statuses = response.data;
 
-    for (const userEl of userElements) {
-        const id = userEl.id.split('-')[1];
-        const infoSpans = userEl.querySelectorAll('.user-info > span');
-        const currentChargesEl = userEl.querySelector('.user-stats .current-charges');
-        const maxChargesEl = userEl.querySelector('.user-stats .max-charges');
-        const currentLevelEl = userEl.querySelector('.user-stats .current-level');
-        const levelProgressEl = userEl.querySelector('.level-progress');
-        const currentDropletsEl = userEl.querySelector('.user-stats .current-droplets');
-        const expirationEl = userEl.querySelector('.user-stats .expiration-string');
+        for (const userEl of userElements) {
+            const id = userEl.id.split('-')[1];
+            const status = statuses[id];
+            const infoSpans = userEl.querySelectorAll('.user-info > span');
+            const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
+            const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
+            const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+            const levelProgressEl = userEl.querySelector('.level-progress');
 
-        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
-        try {
-            const response = await axios.get(`/user/status/${id}`);
-            const userInfo = response.data;
+            if (status && status.success) {
+                const userInfo = status.data;
+                const charges = Math.floor(userInfo.charges.count);
+                const max = userInfo.charges.max;
+                const level = Math.floor(userInfo.level);
+                const progress = Math.round((userInfo.level % 1) * 100);
 
-            const charges = Math.floor(userInfo.charges.count);
-            const max = userInfo.charges.max;
-            const level = Math.floor(userInfo.level);
-            const progress = Math.round((userInfo.level % 1) * 100);
-
-            currentChargesEl.textContent = charges;
-            maxChargesEl.textContent = max;
-            currentLevelEl.textContent = level;
-            levelProgressEl.textContent = `(${progress}%)`;
-            currentDropletsEl.textContent = userInfo.droplets;
-            totalCurrent += charges;
-            totalMax += max;
+                currentChargesEl.textContent = charges;
+                maxChargesEl.textContent = max;
+                currentLevelEl.textContent = level;
+                levelProgressEl.textContent = `(${progress}%)`;
+                currentDropletsEl.textContent = userInfo.droplets;
+                totalCurrent += charges;
+                totalMax += max;
 
 
-            if (userInfo.expirationDate) {
-                const targetDate = new Date(userInfo.expirationDate * 1000);
-                const now = new Date();
-                const diff = targetDate - now;
-                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
+                if (userInfo.expirationDate) {
+                    const targetDate = new Date(userInfo.expirationDate * 1000);
+                    const now = new Date();
+                    const diff = targetDate - now;
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
+                } else {
+                    currentChargesEl.textContent = "?";
+                    maxChargesEl.textContent = "?";
+                    currentLevelEl.textContent = "?";
+                    currentDropletsEl.textContent = "?";
+                    levelProgressEl.textContent = "(?%)";
+                    infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                    infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+                }
+
+            } catch (error) {
+                handleError(error);
+                // On general error, mark all as failed
+                userElements.forEach(userEl => {
+                    const infoSpans = userEl.querySelectorAll('.user-info > span');
+                    infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                });
             }
-
-            infoSpans.forEach(span => span.style.color = 'var(--success-color)');
-        } catch (error) {
-            currentChargesEl.textContent = "?";
-            maxChargesEl.textContent = "?";
-            currentLevelEl.textContent = "?";
-            levelProgressEl.textContent = "(?%)";
-            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+            if (cooldown > 0) {
+                await sleep(cooldown);
+            }
         }
-        if (cooldown > 0) {
-            await sleep(cooldown);
-        }
-    }
 
-    totalCharges.textContent = totalCurrent;
-    totalMaxCharges.textContent = totalMax;
+        totalCharges.textContent = totalCurrent;
+        totalMaxCharges.textContent = totalMax;
 
-    checkUserStatus.disabled = false;
-    checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
-});
+        checkUserStatus.disabled = false;
+        checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
+    });
+
 openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
     userSelectList.innerHTML = "";
@@ -836,6 +871,7 @@ openManageTemplates.addEventListener("click", () => {
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
+                    enableAutostart.checked = t.enableAutostart;
 
                     document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
                         if (t.userIds.includes(cb.value)) {
@@ -878,10 +914,16 @@ openSettings.addEventListener("click", async () => {
         const currentSettings = response.data;
         drawingDirectionSelect.value = currentSettings.drawingDirection;
         drawingOrderSelect.value = currentSettings.drawingOrder;
-        turnstileNotifications.checked = currentSettings.turnstileNotifications;
+        pixelSkipSelect.value = currentSettings.pixelSkip;
         outlineMode.checked = currentSettings.outlineMode;
-        interleavedMode.checked = currentSettings.interleavedMode;
         skipPaintedPixels.checked = currentSettings.skipPaintedPixels;
+
+        proxyEnabled.checked = currentSettings.proxyEnabled;
+        proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
+        logProxyUsage.checked = currentSettings.logProxyUsage;
+        proxyCount.textContent = `${currentSettings.proxyCount} proxies loaded from file.`;
+        proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
+
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
@@ -906,10 +948,34 @@ const saveSetting = async (setting) => {
 
 drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
 drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
-turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
+pixelSkipSelect.addEventListener('change', () => saveSetting({ pixelSkip: parseInt(pixelSkipSelect.value, 10) }));
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
-interleavedMode.addEventListener('change', () => saveSetting({ interleavedMode: interleavedMode.checked }));
 skipPaintedPixels.addEventListener('change', () => saveSetting({ skipPaintedPixels: skipPaintedPixels.checked }));
+
+proxyEnabled.addEventListener('change', () => {
+    proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
+    saveSetting({ proxyEnabled: proxyEnabled.checked });
+});
+
+logProxyUsage.addEventListener('change', () => {
+    saveSetting({ logProxyUsage: logProxyUsage.checked });
+});
+
+proxyRotationMode.addEventListener('change', () => {
+    saveSetting({ proxyRotationMode: proxyRotationMode.value });
+});
+
+reloadProxiesBtn.addEventListener('click', async () => {
+    try {
+        const response = await axios.post('/reload-proxies');
+        if (response.data.success) {
+            proxyCount.textContent = `${response.data.count} proxies reloaded from file.`;
+            showMessage("Success", "Proxies reloaded successfully!");
+        }
+    } catch (error) {
+        handleError(error);
+    }
+});
 
 accountCooldown.addEventListener('change', () => {
     const value = parseInt(accountCooldown.value, 10) * 1000;
