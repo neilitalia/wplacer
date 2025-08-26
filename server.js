@@ -5,6 +5,7 @@ import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas } from "canvas";
+import jwt from "jsonwebtoken";
 
 // --- Setup Data Directory ---
 const dataDir = "./data";
@@ -729,7 +730,9 @@ app.get("/user/status/:id", async (req, res) => {
     const wplacer = new WPlacer();
     try {
         const userInfo = await wplacer.login(users[id].cookies);
-        res.status(200).json(userInfo);
+        const decodedToken = jwt.decode(users[id].cookies.j);
+        const expirationDate = new Date(decodedToken.exp).getTime();
+        res.status(200).json({ ...userInfo, expirationDate });
     } catch (error) {
         logUserError(error, id, users[id].name, "validate cookie");
         res.status(500).json({ error: error.message });

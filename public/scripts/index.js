@@ -465,7 +465,7 @@ openManageUsers.addEventListener("click", () => {
             user.className = 'user';
             user.id = `user-${id}`;
             const expirationDate = users[id].expirationDate;
-            let expirationStr = "N/A"
+            let expirationStr = "?"
 
             if (expirationDate) {
                 const targetDate = new Date(expirationDate * 1000);
@@ -494,7 +494,7 @@ openManageUsers.addEventListener("click", () => {
                             <b><span class="current-level">?</span></b> <span class="level-progress">(?%)</span>
                         </div>
                         <div>
-                            <img class="expires-icon" src="icons/expires.svg"> <b>${expirationStr}</b>
+                            <img class="expires-icon" src="icons/expires.svg"> <b class="expiration-string">${expirationStr}</b>
                         </div>
                     </div>
                 </div>
@@ -526,6 +526,7 @@ openManageUsers.addEventListener("click", () => {
                 const currentLevelEl = user.querySelector('.user-stats .current-level');
                 const levelProgressEl = user.querySelector('.level-progress');
                 const currentDropletsEl = user.querySelector('.user-stats .current-droplets');
+                const expirationEl = user.querySelector('.user-stats .expiration-string');
 
                 infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
                 try {
@@ -542,6 +543,15 @@ openManageUsers.addEventListener("click", () => {
                     currentLevelEl.textContent = level;
                     levelProgressEl.textContent = `(${progress}%)`;
                     currentDropletsEl.textContent = userInfo.droplets;
+
+                    if (userInfo.expirationDate) {
+                        const targetDate = new Date(userInfo.expirationDate * 1000);
+                        const now = new Date();
+                        const diff = targetDate - now;
+                        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
+                    }
 
                     infoSpans.forEach(span => span.style.color = 'var(--success-color)');
                 } catch (error) {
@@ -604,6 +614,7 @@ checkUserStatus.addEventListener("click", async () => {
         const currentLevelEl = userEl.querySelector('.user-stats .current-level');
         const levelProgressEl = userEl.querySelector('.level-progress');
         const currentDropletsEl = userEl.querySelector('.user-stats .current-droplets');
+        const expirationEl = userEl.querySelector('.user-stats .expiration-string');
 
         infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
         try {
@@ -622,6 +633,16 @@ checkUserStatus.addEventListener("click", async () => {
             currentDropletsEl.textContent = userInfo.droplets;
             totalCurrent += charges;
             totalMax += max;
+
+
+            if (userInfo.expirationDate) {
+                const targetDate = new Date(userInfo.expirationDate * 1000);
+                const now = new Date();
+                const diff = targetDate - now;
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
+            }
 
             infoSpans.forEach(span => span.style.color = 'var(--success-color)');
         } catch (error) {
