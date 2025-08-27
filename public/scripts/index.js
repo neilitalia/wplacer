@@ -496,7 +496,7 @@ openManageUsers.addEventListener("click", () => {
                 const diff = targetDate - now;
                 const days = Math.floor(diff / (1000 * 60 * 60 * 24));
                 const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                expirationStr = `${days}d ${hours}h`;
+                expirationStr = days > 0 ? `${days}d` : `${hours}h`;
             }
 
             user.innerHTML = `
@@ -517,7 +517,7 @@ openManageUsers.addEventListener("click", () => {
                             <b><span class="current-level">?</span></b> <span class="level-progress">(?%)</span>
                         </div>
                         <div>
-                            <img class="expires-icon" src="icons/expires.svg"> <b class="expiration-string">${expirationStr}</b>
+                            <img class="expires-icon" src="icons/expires.svg"> <b><span class="expiration-string">${expirationStr}</span></b>
                         </div>
                     </div>
                 </div>
@@ -640,10 +640,12 @@ checkUserStatus.addEventListener("click", async () => {
             const id = userEl.id.split('-')[1];
             const status = statuses[id];
             const infoSpans = userEl.querySelectorAll('.user-info > span');
-            const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
-            const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
-            const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+            const currentChargesEl = userEl.querySelector('.user-stats .current-charges');
+            const maxChargesEl = userEl.querySelector('.user-stats .max-charges');
+            const currentLevelEl = userEl.querySelector('.user-stats .current-level');
             const levelProgressEl = userEl.querySelector('.level-progress');
+            const expirationEl = userEl.querySelector('.user-stats .expiration-string');
+            const currentDropletsEl = userEl.querySelector('.user-stats .current-droplets');
 
             if (status && status.success) {
                 const userInfo = status.data;
@@ -652,7 +654,7 @@ checkUserStatus.addEventListener("click", async () => {
                 const level = Math.floor(userInfo.level);
                 const progress = Math.round((userInfo.level % 1) * 100);
 
-                if (userInfo.expirationDate) {
+                if (status.data.expirationDate) {
                     const targetDate = new Date(userInfo.expirationDate * 1000);
                     const now = new Date();
                     const diff = targetDate - now;
@@ -668,6 +670,8 @@ checkUserStatus.addEventListener("click", async () => {
                 currentDropletsEl.textContent = userInfo.droplets;
                 totalCurrent += charges;
                 totalMax += max;
+
+                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
             } else {
                 currentChargesEl.textContent = "?";
                 maxChargesEl.textContent = "?";
@@ -676,7 +680,6 @@ checkUserStatus.addEventListener("click", async () => {
                 levelProgressEl.textContent = "(?%)";
                 expirationEl.textContent = "?";
                 infoSpans.forEach(span => span.style.color = 'var(--error-color)');
-                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
             }
         }
     } catch (error) {
@@ -1059,23 +1062,28 @@ tx.addEventListener('blur', () => {
 
 paintEvents.on('paint', (data) => {
     console.log('data :>', data)
-    if (data.pixelsPainted && data.user.id) {
+    if (data.user.id) {
         const userElement = $(`user-${data.user.id}`);
-        const currentCharges = data.user.charges.count;
-        const currentDroplets = data.user.droplets
-
         try {
-            userElement.querySelector('.current-charges').textContent = 0;
+            const expirationDate = data.expirationDate;
+            let expirationStr = "?"
+
+            if (expirationDate) {
+                const targetDate = new Date(expirationDate * 1000);
+                const now = new Date();
+                const diff = targetDate - now;
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                expirationStr = days > 0 ? `${days}d` : `${hours}h`;
+            }
+
+            userElement.querySelector('.current-charges').textContent = Math.floor(data.user.charges.count - data.pixelsPainted);
             userElement.querySelector('.max-charges').textContent = data.user.charges.max;
             userElement.querySelector('.current-level').textContent = Math.floor(data.user.level);
             userElement.querySelector('.level-progress').textContent = `(${Math.round((data.user.level % 1) * 100)}%)`;
-            userElement.querySelector('.current-droplets').textContent = currentDroplets;
+            userElement.querySelector('.current-droplets').textContent = data.user.droplets || "0";
+            userElement.querySelector('.expiration-string').textContent = expirationStr;
             userElement.querySelectorAll('.user-info > span').forEach(span => span.style.color = 'var(--success-color)');
-
-            if (currentDroplets > 500) {
-                userElement.querySelector('.current-droplets').textContent = (currentDroplets + currentCharges) % 500
-                userElement.querySelector('.max-charges').textContent = data.user.charges.max + 5;
-            }
         } catch (error) {
             console.error("Failed to update user element:", error);
         }

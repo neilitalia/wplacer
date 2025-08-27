@@ -538,7 +538,7 @@ function logUserError(error, id, name, context) {
     if (error.name === 'NetworkError' || message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error.name === "SuspensionError") {
         log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
-        log(id, name, `❌ ${code ? code : ""} Failed to ${context}`, error);
+        log(id, name, `❌ Failed to ${context}`, error);
     }
 }
 
@@ -607,6 +607,14 @@ class TemplateManager {
                 await wplacer.buyProduct(70, amountToBuy);
                 await this.sleep(currentSettings.purchaseCooldown);
                 await wplacer.loadUserInfo();
+                broadcastUpdate({
+                    template: this.name,
+                    user: wplacer.userInfo,
+                    pixelsPainted: 0,
+                    pixelsRemaining: this.pixelsRemaining,
+                    timestamp: Date.now(),
+                    expirationDate: getTokenExpiration(users[wplacer.userInfo.id])
+                });
             } catch (error) {
                 logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
             }
@@ -621,12 +629,13 @@ class TemplateManager {
                 const pixelsPainted = await wplacer.paint(this.currentPixelSkip);
 
                 // Broadcast paint update
-                broadcastPaintUpdate({
+                broadcastUpdate({
                     template: this.name,
                     user: wplacer.userInfo,
                     pixelsPainted,
                     pixelsRemaining: this.pixelsRemaining,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    expirationDate: getTokenExpiration(users[wplacer.userInfo.id])
                 });
                 paintingComplete = true;
             } catch (error) {
@@ -656,13 +665,17 @@ class TemplateManager {
         activePaintingTasks++;
 
         try {
+            let pixelsChecked = false;
+            let usersChecked = false;
+            let localUserStates = [];
+
             for (this.currentPixelSkip = currentSettings.pixelSkip; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
                 if (!this.running) break;
                 log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
 
                 let passComplete = false;
+
                 while (this.running && !passComplete) {
-                    let pixelsChecked = false;
                     const availableCheckUsers = this.userIds.filter(id => !activeBrowserUsers.has(id));
                     if (availableCheckUsers.length === 0) {
                         log('SYSTEM', 'wplacer', `[${this.name}] ⏳ All users are busy. Waiting...`);
@@ -670,7 +683,10 @@ class TemplateManager {
                         continue;
                     }
 
+                    const availableUsers = this.userIds.filter(id => !(users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) && !activeBrowserUsers.has(id));
+
                     for (const userId of availableCheckUsers) {
+                        if (pixelsChecked) break;
                         const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
                         try {
                             await checkWplacer.login(users[userId].cookies);
@@ -683,36 +699,40 @@ class TemplateManager {
                         }
                     }
 
-                    if (!pixelsChecked) {
+                    if (pixelsChecked && (!usersChecked || localUserStates.length === 0)) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] Checking status for ${availableUsers.length} available users...`);
+                        for (const userId of availableUsers) {
+                            if (activeBrowserUsers.has(userId)) continue;
+                            activeBrowserUsers.add(userId);
+                            const wplacer = new WPlacer();
+                            try {
+                                const userInfo = await wplacer.login(users[userId].cookies);
+                                localUserStates.push({ userId, charges: userInfo.charges });
+                                broadcastUpdate({
+                                    template: this.name,
+                                    user: userInfo,
+                                    pixelsPainted: 0,
+                                    pixelsRemaining: this.pixelsRemaining,
+                                    timestamp: Date.now(),
+                                    expirationDate: getTokenExpiration(users[userId])
+                                });
+                                log('SYSTEM', 'wplacer', `✅ ${userInfo.name} (#${userInfo.id}) - ${Math.floor(userInfo.charges.count)}/${Math.floor(userInfo.charges.max)} charges.`);
+                            } catch (error) {
+                                logUserError(error, userId, users[userId].name, "check user status");
+                            } finally {
+                                localUserStates = localUserStates.sort((a, b) => b.charges.count - a.charges.count);
+                                usersChecked = true;
+                                activeBrowserUsers.delete(userId);
+                            }
+                            await this.sleep(currentSettings.accountCheckCooldown);
+                        }
+                    }
+
+                    if (!pixelsChecked && localUserStates.length > 0) {
                         log('SYSTEM', 'wplacer', `[${this.name}] All available users failed to check canvas. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
                         await this.sleep(this.currentRetryDelay);
                         this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
                         continue;
-                    }
-
-                    if (this.pixelsRemaining === 0) {
-                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
-                        passComplete = true;
-                        continue;
-                    }
-
-                    const localUserStates = [];
-                    const availableUsers = this.userIds.filter(id => !(users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) && !activeBrowserUsers.has(id));
-
-                    log('SYSTEM', 'wplacer', `[${this.name}] Checking status for ${availableUsers.length} available users...`);
-                    for (const userId of availableUsers) {
-                        if (activeBrowserUsers.has(userId)) continue;
-                        activeBrowserUsers.add(userId);
-                        const wplacer = new WPlacer();
-                        try {
-                            const userInfo = await wplacer.login(users[userId].cookies);
-                            localUserStates.push({ userId, charges: userInfo.charges });
-                        } catch (error) {
-                            logUserError(error, userId, users[userId].name, "check user status");
-                        } finally {
-                            activeBrowserUsers.delete(userId);
-                        }
-                        await this.sleep(currentSettings.accountCheckCooldown);
                     }
 
                     const readyUsers = localUserStates
@@ -735,7 +755,6 @@ class TemplateManager {
 
                             await this.handleUpgrades(wplacer);
                             this.currentRetryDelay = this.initialRetryDelay;
-
                         } catch (error) {
                             // SuspensionError is re-thrown and caught here
                             if (error.name !== 'SuspensionError') {
@@ -748,13 +767,13 @@ class TemplateManager {
                             }
                         } finally {
                             activeBrowserUsers.delete(userToRun.userId);
+                            localUserStates = localUserStates.filter(user => user.userId !== userToRun.userId);
                         }
 
                         if (paintedInTurn && this.running && this.userIds.length > 1) {
                             log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
                             await this.sleep(currentSettings.accountCooldown);
                         }
-
                     } else {
                         if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
                             activeBrowserUsers.add(this.masterId);
@@ -785,7 +804,20 @@ class TemplateManager {
                         const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
                         this.status = `Waiting for charges.`;
                         log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready to paint. Waiting for charges to replenish (est. ${duration(waitTime)}).`);
+                        usersChecked = false;
                         await this.sleep(waitTime);
+                    }
+
+                    if (this.pixelsRemaining === 0) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Template finished!`);
+                        if (this.antiGriefMode) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
+                            await this.sleep(currentSettings.antiGriefStandby);
+                            continue;
+                        } else {
+                            passComplete = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -880,8 +912,7 @@ app.get("/user/status/:id", async (req, res) => {
     const wplacer = new WPlacer();
     try {
         const userInfo = await wplacer.login(users[id].cookies);
-        const decodedToken = jwt.decode(users[id].cookies.j);
-        const expirationDate = new Date(decodedToken.exp).getTime();
+        const expirationDate = getTokenExpiration(users[id]);
         res.status(200).json({ ...userInfo, expirationDate });
     } catch (error) {
         logUserError(error, id, users[id].name, "validate cookie");
@@ -905,9 +936,12 @@ app.post("/users/status", async (req, res) => {
         const wplacer = new WPlacer();
         try {
             const userInfo = await wplacer.login(users[id].cookies);
+            const expirationDate = getTokenExpiration(users[id]);
+            userInfo.expirationDate = expirationDate;
             results[id] = { success: true, data: userInfo };
         } catch (error) {
             logUserError(error, id, users[id].name, "validate cookie in bulk check");
+            console.log(error);
             results[id] = { success: false, error: error.message };
         } finally {
             activeBrowserUsers.delete(id);
@@ -1080,6 +1114,15 @@ app.get("/canvas", async (req, res) => {
     });
 })();
 
+const getTokenExpiration = (user) => {
+    try {
+        const decoded = jwt.decode(user.cookies.j);
+        return new Date(decoded.exp).getTime();
+    } catch {
+        return "Unknown";
+    }
+}
+
 // Track SSE clients
 const clients = new Set();
 
@@ -1102,7 +1145,7 @@ app.get('/events', (req, res) => {
 });
 
 // Helper function to broadcast paint updates
-function broadcastPaintUpdate(data) {
+function broadcastUpdate(data) {
     const eventData = `event: paint\ndata: ${JSON.stringify(data)}\n\n`;
     clients.forEach(client => {
         client.write(eventData);
