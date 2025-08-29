@@ -11,18 +11,24 @@
 </head>
 
 <body>
+    <div class="navigation">
+        <div class="container menu">
+            <div id="main">
+                <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage
+                    Users</button>
+                <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add
+                    Template</button>
+                <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
+                    Templates</button>
+                <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
+            </div>
+        </div>
+    </div>
     <div class="container">
         <h1><img src="icons/favicon.png">wplacer</h1>
 
-        <div id="main">
-            <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
-            <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
-                Templates</button>
-            <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
-        </div>
 
-        <div id="manageUsers" style="display: none;">
+        <div id="manageUsers">
             <h2>Add/Manage Users</h2>
             <form id="userForm">
                 <label for="jcookie">JWT Cookie (j)</label>
@@ -38,10 +44,14 @@
                 <b>Total Available Charges:</b> <span id="totalCharges">?</span> |
                 <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
             </div>
-            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
+            <div class="user-list-actions">
+                <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account
+                    Status</button>
+                <button id="toggleSensitiveInfo" class="primary-button"><img src="icons/check.svg">Toggle Info</button>
+            </div>
             <div id="userList"></div>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <!-- <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button> -->
         </div>
 
         <div id="addTemplate" style="display: none;">
@@ -79,6 +89,8 @@
                 <div id="userSelectList"></div>
                 <button type="button" id="selectAllUsers" class="secondary-button"><img
                         src="icons/manageUsers.svg">Select All</button>
+                <button type="button" id="deselectAllUsers" class="secondary-button" style="display: none;"><img
+                        src="icons/manageUsers.svg">Deselect All</button>
 
                 <div class="setting-toggle">
                     <label for="canBuyMaxCharges">Buy max charge upgrades</label>
@@ -108,11 +120,18 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <div class="setting-toggle">
+                    <label for="autoFarm">Auto farm (non-stop painting)</label>
+                    <label class="switch">
+                        <input id="autoFarm" name="autoFarm" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
                 <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add
                     Template</button>
             </form>
-            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img
-                    src="icons/return.svg">Return</button>
+            <!-- <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img
+                    src="icons/return.svg">Return</button> -->
         </div>
 
         <div id="manageTemplates" style="display: none;">
@@ -122,7 +141,7 @@
                 <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>
             </div>
             <div id="templateList"></div>
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <!-- <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button> -->
         </div>
 
         <div id="settings" style="display: none;">
@@ -216,7 +235,7 @@
                 <button type="button" id="reloadProxiesBtn" class="secondary-button">Reload Proxies from File</button>
             </div>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <!-- <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button> -->
         </div>
 
         <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img

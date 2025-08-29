@@ -200,15 +200,15 @@ label {
 
 #userList {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 16px;
-    margin-top: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
     margin-bottom: 24px;
 }
 
 .user {
     background-color: var(--background-tertiary);
-    padding: 16px;
+    padding: 12px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
     display: flex;
@@ -615,4 +615,56 @@ input:checked + .slider:before {
     background: 
     repeating-conic-gradient(rgba(128, 128, 128, 0.5) 0 25%, #0000 0 50%) 
       50% / 20px 20px
+}
+
+body {
+    position: relative;
+}
+
+.navigation {
+    position: fixed;
+    top: 40px;
+    left: 40px;
+    height: 100vh;
+}
+
+.container.menu {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: auto;
+    max-width: 250px;
+    padding: 20px;
+    z-index: 100;
+}
+
+.container.menu button:last-of-type {
+    margin-bottom: 0 !important;
+}
+
+.user-list-actions {
+    display: flex;
+    gap: 16px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#toggleSensitiveInfo {
+    max-width: 160px;
+}
+
+.user-number {
+    font-weight: 700;
+    font-size: 16px !important;
+    display: none;
+}
+
+#userList.sensitive-hidden .user-name,
+#userList.sensitive-hidden .user-id {
+    display: none;
+}
+
+#userList.sensitive-hidden .user-number {
+    display: inline;
 }

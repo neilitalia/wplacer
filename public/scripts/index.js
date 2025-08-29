@@ -33,10 +33,12 @@ const px = $("px");
 const py = $("py");
 const userSelectList = $("userSelectList");
 const selectAllUsers = $("selectAllUsers");
+const deselectAllUsers = $("deselectAllUsers");
 const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const antiGriefMode = $("antiGriefMode");
 const enableAutostart = $("enableAutostart");
+const autoFarm = $("autoFarm");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
@@ -67,6 +69,7 @@ const proxyRotationMode = $("proxyRotationMode");
 const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
 const logProxyUsage = $("logProxyUsage");
+const toggleSensitiveInfo = $("toggleSensitiveInfo");
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -443,7 +446,8 @@ templateForm.addEventListener('submit', async (e) => {
         canBuyCharges: canBuyCharges.checked,
         canBuyMaxCharges: canBuyMaxCharges.checked,
         antiGriefMode: antiGriefMode.checked,
-        enableAutostart: enableAutostart.checked
+        enableAutostart: enableAutostart.checked,
+        autoFarm: autoFarm.checked,
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -489,8 +493,10 @@ stopAll.addEventListener('click', async () => {
 
 
 // tabs
-let currentTab = main;
+let currentTab = manageUsers;
+openManageUsers.click();
 const changeTab = (el) => {
+    if (currentTab === main || currentTab.id === el.id) return;
     if (templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
@@ -506,10 +512,14 @@ openManageUsers.addEventListener("click", () => {
     totalCharges.textContent = "?";
     totalMaxCharges.textContent = "?";
     loadUsers(users => {
-        const userCount = Object.keys(users).length;
+        const loadedUsers = Object.keys(users)
+        const userCount = loadedUsers.length;
         manageUsersTitle.textContent = `Existing Users (${userCount})`;
-        for (const id of Object.keys(users)) {
+        for (const [index, id] of loadedUsers.entries()) {
+            console.log('index', index)
+            console.log('id', id)
             const user = document.createElement('div');
+            console.log('user', user)
             user.className = 'user';
             user.id = `user-${id}`;
             const expirationDate = users[id].expirationDate;
@@ -528,6 +538,7 @@ openManageUsers.addEventListener("click", () => {
                 <div class="user-info">
                     <span class="user-name">${users[id].name}</span>
                     <span class="user-id">#${id}</span>
+                    <span class="user-number">User ${index + 1}</span>
                     <div class="user-stats">
                         <div>
                             <img class="charges-icon" src="icons/charges.svg">
@@ -749,8 +760,17 @@ openAddTemplate.addEventListener("click", () => {
     });
     changeTab(addTemplate);
 });
+
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
+    selectAllUsers.style.display = 'none';
+    deselectAllUsers.style.display = 'inline-flex';
+});
+
+deselectAllUsers.addEventListener('click', () => {
+    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    selectAllUsers.style.display = 'inline-flex';
+    deselectAllUsers.style.display = 'none';
 });
 
 const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {
@@ -898,6 +918,7 @@ openManageTemplates.addEventListener("click", () => {
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
                     enableAutostart.checked = t.enableAutostart;
+                    autoFarm.checked = t.autoFarm;
 
                     // Wait for DOM to update, then check appropriate users
                     setTimeout(() => {
@@ -1058,6 +1079,10 @@ chargeThreshold.addEventListener('change', () => {
     saveSetting({ chargeThreshold: value / 100 });
 });
 
+toggleSensitiveInfo.addEventListener('click', () => {
+    userList.classList.toggle('sensitive-hidden');
+})
+
 tx.addEventListener('blur', () => {
     const value = tx.value.trim();
     const urlRegex = /pixel\/(\d+)\/(\d+)\?x=(\d+)&y=(\d+)/;
@@ -1115,4 +1140,8 @@ paintEvents.on('paint', (data) => {
             console.error("Failed to update user element:", error);
         }
     }
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+    openManageUsers.click();
 });
