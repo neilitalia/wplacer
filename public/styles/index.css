@@ -214,8 +214,21 @@ label {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 2s cubic-bezier(0.000, 1.435, 0.040, 0.895);
     aspect-ratio: 1 / 1;
+    box-shadow: 0;
+}
+
+.user.painted {
+    box-shadow: 0 0 0 3px var(--success-color);
+}
+
+.user .current-charges {
+    transition: color 0.3s ease-in-out;
+}
+
+.user.charge-increment .current-charges {
+    color: var(--success-color) !important;
 }
 
 .user-info {

@@ -5,35 +5,47 @@ class ChargeManager {
     this.CHARGE_INTERVAL = 30000; // 30 seconds
   }
 
-  addUser(userId, initialCharges = 0) {
+  addUser(userElement, initialCharges = 0, maxCharges = 0) {
     // Stop existing timer if any
+    const userId = userElement.id.replace('user-', '');
     this.stopChargeTimer(userId);
 
-    // Store initial charges
-    this.charges.set(userId, initialCharges);
+    // Store initial charge data
+    this.charges.set(userId, { initialCharges, maxCharges });
+    if (maxCharges === 0) return; // No charges to manage
 
-    const userElement = document.querySelector(`#user-${userId}`);
-    if (!userElement) return;
+    try {
+      if (!userElement) throw new Error("User element not found");
 
-    const chargesElement = userElement.querySelector('.charges-count');
-    if (!chargesElement) return;
+      const currentChargesElement = userElement.querySelector('.current-charges');
+      if (!currentChargesElement) throw new Error("Current charges element not found");
 
-    // Set initial charges display
-    chargesElement.textContent = initialCharges;
+      const maxChargesElement = userElement.querySelector('.max-charges');
+      if (!maxChargesElement) throw new Error("Max charges element not found");
 
-    // Start new timer
-    this.chargeTimers.set(userId, setInterval(() => {
-      const currentCharges = this.charges.get(userId) + 1;
-      this.charges.set(userId, currentCharges);
+      // Set initial charges display
+      currentChargesElement.innerText = initialCharges;
 
-      chargesElement.textContent = currentCharges;
+      // Start new timer
+      this.chargeTimers.set(userId, setInterval(() => {
+        const charges = this.charges.get(userId);
+        const currentCharges = Math.min(charges.initialCharges, charges.maxCharges);
+        const maxCharges = charges.maxCharges;
 
-      // Add animation effect
-      chargesElement.classList.add('charge-increment');
-      setTimeout(() => chargesElement.classList.remove('charge-increment'), 500);
-    }, this.CHARGE_INTERVAL));
+        if (currentCharges < maxCharges) {
+          this.charges.set(userId, { initialCharges: currentCharges + 1, maxCharges });
+          currentChargesElement.innerText = currentCharges;
 
-    console.log(`Started charge timer for user ${userId}`);
+          // Add animation effect
+          userElement.classList.add('charge-increment');
+          setTimeout(() => userElement.classList.remove('charge-increment'), 1000);
+        }
+      }, this.CHARGE_INTERVAL));
+
+      console.log(`Started charge timer for user ${userId}`);
+    } catch (error) {
+      console.error(`Failed to add user ${userId} to ChargeManager:`, error);
+    }
   }
 
   removeUser(userId) {

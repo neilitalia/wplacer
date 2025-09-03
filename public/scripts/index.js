@@ -38,6 +38,7 @@ const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const antiGriefMode = $("antiGriefMode");
 const enableAutostart = $("enableAutostart");
+const paintTransparentPixels = $("paintTransparentPixels");
 const autoFarm = $("autoFarm");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
@@ -70,12 +71,16 @@ const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
 const logProxyUsage = $("logProxyUsage");
 const toggleSensitiveInfo = $("toggleSensitiveInfo");
+const hideSensitiveLogs = $("hideSensitiveLogs");
 
 // --- Global State ---
 let templateUpdateInterval = null;
 
 // Message Box
 let confirmCallback = null;
+
+let usersAreLoaded = false;
+const chargeManager = new ChargeManager()
 
 const showMessage = (title, content) => {
     messageBoxTitle.innerHTML = title;
@@ -447,6 +452,7 @@ templateForm.addEventListener('submit', async (e) => {
         canBuyMaxCharges: canBuyMaxCharges.checked,
         antiGriefMode: antiGriefMode.checked,
         enableAutostart: enableAutostart.checked,
+        paintTransparentPixels: paintTransparentPixels.checked,
         autoFarm: autoFarm.checked,
     };
 
@@ -507,150 +513,208 @@ const changeTab = (el) => {
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 openManageUsers.addEventListener("click", () => {
-    userList.innerHTML = "";
-    userForm.reset();
-    totalCharges.textContent = "?";
-    totalMaxCharges.textContent = "?";
-    loadUsers(users => {
-        const loadedUsers = Object.keys(users)
-        const userCount = loadedUsers.length;
-        manageUsersTitle.textContent = `Existing Users (${userCount})`;
-        for (const [index, id] of loadedUsers.entries()) {
-            console.log('index', index)
-            console.log('id', id)
-            const user = document.createElement('div');
-            console.log('user', user)
-            user.className = 'user';
-            user.id = `user-${id}`;
-            const expirationDate = users[id].expirationDate;
-            let expirationStr = "?"
+    if (usersAreLoaded) {
+        const storedUsers = Object.keys({ ...localStorage });
+        storedUsers.forEach((id) => {
+            const userData = JSON.parse(localStorage.getItem(id) || "{}");
+            const userEl = $(`user-${id}`);
+            if (userEl) {
+                const currentChargesEl = userEl.querySelector('.user-stats .current-charges');
+                const maxChargesEl = userEl.querySelector('.user-stats .max-charges');
+                const currentLevelEl = userEl.querySelector('.user-stats .current-level');
+                const levelProgressEl = userEl.querySelector('.level-progress');
+                const expirationEl = userEl.querySelector('.user-stats .expiration-string');
+                const currentDropletsEl = userEl.querySelector('.user-stats .current-droplets');
 
-            if (expirationDate) {
-                const targetDate = new Date(expirationDate * 1000);
-                const now = new Date();
-                const diff = targetDate - now;
-                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                expirationStr = days > 0 ? `${days}d` : `${hours}h`;
+                currentChargesEl.textContent = Math.floor(userData.user.charges.count) || "?";
+                maxChargesEl.textContent = userData.user.charges.max || "?";
+                currentLevelEl.textContent = Math.floor(userData.user.level) || "?";
+                levelProgressEl.textContent = `(${Math.floor((userData.user.level % 1) * 100)}%)`;
+                currentDropletsEl.textContent = userData.user.droplets || "?";
+
+                if (userData.expirationDate) {
+                    const targetDate = new Date(userData.expirationDate * 1000);
+                    const now = new Date();
+                    const diff = targetDate - now;
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
+                } else {
+                    expirationEl.textContent = "?";
+                }
+
+                chargeManager.addUser(userEl, Math.floor(userData.user.charges.count), userData.user.charges.max);
             }
+        })
+    } else {
+        userList.innerHTML = "";
+        userForm.reset();
+        totalCharges.textContent = "?";
+        totalMaxCharges.textContent = "?";
+        loadUsers(users => {
+            const loadedUsers = Object.keys(users)
+            const userCount = loadedUsers.length;
+            manageUsersTitle.textContent = `Existing Users (${userCount})`;
+            for (const [index, id] of loadedUsers.entries()) {
+                const user = document.createElement('div');
+                user.className = 'user';
+                user.id = `user-${id}`;
+                const expirationDate = users[id].expirationDate;
+                let expirationStr = "?"
+                const storedData = JSON.parse(localStorage.getItem(id));
 
-            user.innerHTML = `
-                <div class="user-info">
-                    <span class="user-name">${users[id].name}</span>
-                    <span class="user-id">#${id}</span>
-                    <span class="user-number">User ${index + 1}</span>
-                    <div class="user-stats">
-                        <div>
-                            <img class="charges-icon" src="icons/charges.svg">
-                            <b><span class="current-charges">?</span></b>/<b><span class="max-charges">?</span></b>
-                        </div>
-                        <div>
-                            <img class="droplets-icon" src="icons/droplet.svg">
-                            <b><span class="current-droplets">?</span></b>
-                        </div>
-                        <div>
-                            <img class="level-icon" src="icons/level.svg">
-                            <b><span class="current-level">?</span></b> <span class="level-progress">(?%)</span>
-                        </div>
-                        <div>
-                            <img class="expires-icon" src="icons/expires.svg"> <b><span class="expiration-string">${expirationStr}</span></b>
+                if (expirationDate) {
+                    const targetDate = new Date(expirationDate * 1000);
+                    const now = new Date();
+                    const diff = targetDate - now;
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    expirationStr = days > 0 ? `${days}d` : `${hours}h`;
+                }
+
+                user.innerHTML = `
+                    <div class="user-info">
+                        <span class="user-name">${users[id].name}</span>
+                        <span class="user-id">#${id}</span>
+                        <span class="user-number">#${id.substring(id.length - 3)}</span>
+                        <div class="user-stats">
+                            <div>
+                                <img class="charges-icon" src="icons/charges.svg">
+                                <b>
+                                    <span class="current-charges">
+                                        ${Math.floor(storedData.user.charges.count) || "?"}
+                                    </span>
+                                </b>
+                                /
+                                <b>
+                                    <span class="max-charges">
+                                        ${storedData.user.charges.max || "?"}
+                                    </span>
+                                </b>
+                            </div>
+                            <div>
+                                <img class="droplets-icon" src="icons/droplet.svg">
+                                <b><span class="current-droplets">
+                                    ${storedData.user.droplets || "?"}
+                                </span></b>
+                            </div>
+                            <div>
+                                <img class="level-icon" src="icons/level.svg">
+                                <b><span class="current-level">
+                                    ${Math.floor(storedData.user.level) || "?"}
+                                </span></b> <span class="level-progress">
+                                    (${Math.floor(storedData.user.level % 1 * 100) || "?"}%)
+                                </span>
+                            </div>
+                            <div>
+                                <img class="expires-icon" src="icons/expires.svg"> <b><span class="expiration-string">${expirationStr}</span></b>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="user-actions">
-                    <button class="refresh-btn" title="Refresh User Info"><img src="icons/restart.svg"></button>
-                    <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
-                    <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
-                </div>`;
+                    <div class="user-actions">
+                        <button class="refresh-btn" title="Refresh User Info"><img src="icons/restart.svg"></button>
+                        <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
+                        <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
+                    </div>`;
 
-            user.querySelector('.delete-btn').addEventListener("click", () => {
-                showConfirmation(
-                    "Delete User",
-                    `Are you sure you want to delete ${users[id].name} (#${id})? This will also remove them from all templates.`,
-                    async () => {
-                        try {
-                            await axios.delete(`/user/${id}`);
-                            showMessage("Success", "User deleted.");
-                            openManageUsers.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
+                user.querySelector('.delete-btn').addEventListener("click", () => {
+                    showConfirmation(
+                        "Delete User",
+                        `Are you sure you want to delete ${users[id].name} (#${id})? This will also remove them from all templates.`,
+                        async () => {
+                            try {
+                                await axios.delete(`/user/${id}`);
+                                showMessage("Success", "User deleted.");
+                                openManageUsers.click();
+                            } catch (error) {
+                                handleError(error);
+                            };
+                        }
+                    );
+                });
+                user.querySelector('.refresh-btn').addEventListener("click", async () => {
+                    const infoSpans = user.querySelectorAll('.user-info > span');
+                    const currentChargesEl = user.querySelector('.user-stats .current-charges');
+                    const maxChargesEl = user.querySelector('.user-stats .max-charges');
+                    const currentLevelEl = user.querySelector('.user-stats .current-level');
+                    const levelProgressEl = user.querySelector('.level-progress');
+                    const currentDropletsEl = user.querySelector('.user-stats .current-droplets');
+                    const expirationEl = user.querySelector('.user-stats .expiration-string');
+
+                    infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+                    try {
+                        const response = await axios.get(`/user/status/${id}`);
+                        const userInfo = response.data;
+
+                        const charges = Math.floor(userInfo.charges.count);
+                        const max = userInfo.charges.max;
+                        const level = Math.floor(userInfo.level);
+                        const progress = Math.round((userInfo.level % 1) * 100);
+
+                        currentChargesEl.textContent = charges;
+                        maxChargesEl.textContent = max;
+                        currentLevelEl.textContent = level;
+                        levelProgressEl.textContent = `(${progress}%)`;
+                        currentDropletsEl.textContent = userInfo.droplets;
+
+                        if (userInfo.expirationDate) {
+                            const targetDate = new Date(userInfo.expirationDate * 1000);
+                            const now = new Date();
+                            const diff = targetDate - now;
+                            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
+                        }
+
+                        infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+                        chargeManager.addUser(user, charges, max);
+                        localStorage.setItem(id, JSON.stringify({
+                            user: userInfo,
+                            lastChecked: Date.now(),
+                            expirationDate
+                        }));
+                    } catch (error) {
+                        currentChargesEl.textContent = "?";
+                        maxChargesEl.textContent = "?";
+                        currentLevelEl.textContent = "?";
+                        levelProgressEl.textContent = "(?%)";
+                        currentDropletsEl.textContent = "?";
+                        infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                        handleError(error);
                     }
-                );
-            });
-            user.querySelector('.refresh-btn').addEventListener("click", async () => {
-                const infoSpans = user.querySelectorAll('.user-info > span');
-                const currentChargesEl = user.querySelector('.user-stats .current-charges');
-                const maxChargesEl = user.querySelector('.user-stats .max-charges');
-                const currentLevelEl = user.querySelector('.user-stats .current-level');
-                const levelProgressEl = user.querySelector('.level-progress');
-                const currentDropletsEl = user.querySelector('.user-stats .current-droplets');
-                const expirationEl = user.querySelector('.user-stats .expiration-string');
+                })
+                user.querySelector('.info-btn').addEventListener("click", async () => {
+                    try {
+                        const response = await axios.get(`/user/status/${id}`);
+                        const info = `
+                        <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
+                        <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
+                        <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
+                        <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
+                        <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
+                        <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
+                        <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
+                        <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
+                        <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
+                        <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
+                        <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
+                        <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
+                        `;
 
-                infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
-                try {
-                    const response = await axios.get(`/user/status/${id}`);
-                    const userInfo = response.data;
+                        showConfirmation("User Info", info, () => {
+                            navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+                        });
+                    } catch (error) {
+                        handleError(error);
+                    };
+                });
+                userList.appendChild(user);
 
-                    const charges = Math.floor(userInfo.charges.count);
-                    const max = userInfo.charges.max;
-                    const level = Math.floor(userInfo.level);
-                    const progress = Math.round((userInfo.level % 1) * 100);
-
-                    currentChargesEl.textContent = charges;
-                    maxChargesEl.textContent = max;
-                    currentLevelEl.textContent = level;
-                    levelProgressEl.textContent = `(${progress}%)`;
-                    currentDropletsEl.textContent = userInfo.droplets;
-
-                    if (userInfo.expirationDate) {
-                        const targetDate = new Date(userInfo.expirationDate * 1000);
-                        const now = new Date();
-                        const diff = targetDate - now;
-                        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                        expirationEl.textContent = days > 0 ? `${days}d` : `${hours}h`;
-                    }
-
-                    infoSpans.forEach(span => span.style.color = 'var(--success-color)');
-                } catch (error) {
-                    currentChargesEl.textContent = "?";
-                    maxChargesEl.textContent = "?";
-                    currentLevelEl.textContent = "?";
-                    levelProgressEl.textContent = "(?%)";
-                    currentDropletsEl.textContent = "?";
-                    infoSpans.forEach(span => span.style.color = 'var(--error-color)');
-                    handleError(error);
-                }
-            })
-            user.querySelector('.info-btn').addEventListener("click", async () => {
-                try {
-                    const response = await axios.get(`/user/status/${id}`);
-                    const info = `
-                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
-                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
-                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
-                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
-                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
-                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
-                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
-                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
-                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
-                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
-                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
-                    `;
-
-                    showConfirmation("User Info", info, () => {
-                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
-                    });
-                } catch (error) {
-                    handleError(error);
-                };
-            });
-            userList.appendChild(user);
-        };
-    });
+                chargeManager.addUser(user, storedData ? Math.floor(storedData.user.charges.count) : 0, storedData ? storedData.user.charges.max : 0);
+            };
+        });
+        usersAreLoaded = true;
+    }
     changeTab(manageUsers);
 });
 
@@ -708,6 +772,13 @@ checkUserStatus.addEventListener("click", async () => {
                 totalMax += max;
 
                 infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+
+                chargeManager.addUser(userEl, charges, max);
+                localStorage.setItem(id, JSON.stringify({
+                    user: userInfo,
+                    lastChecked: Date.now(),
+                    expirationDate: userInfo.expirationDate
+                }));
             } else {
                 currentChargesEl.textContent = "?";
                 maxChargesEl.textContent = "?";
@@ -918,6 +989,7 @@ openManageTemplates.addEventListener("click", () => {
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
                     enableAutostart.checked = t.enableAutostart;
+                    paintTransparentPixels.checked = t.paintTransparentPixels;
                     autoFarm.checked = t.autoFarm;
 
                     // Wait for DOM to update, then check appropriate users
@@ -978,6 +1050,7 @@ openSettings.addEventListener("click", async () => {
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
+        hideSensitiveLogs.checked = currentSettings.hideSensitiveLogs;
     } catch (error) {
         handleError(error);
     }
@@ -998,6 +1071,7 @@ drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDir
 drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 pixelSkipSelect.addEventListener('change', () => saveSetting({ pixelSkip: parseInt(pixelSkipSelect.value, 10) }));
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
+hideSensitiveLogs.addEventListener('change', () => saveSetting({ hideSensitiveLogs: hideSensitiveLogs.checked }));
 skipPaintedPixels.addEventListener('change', () => saveSetting({ skipPaintedPixels: skipPaintedPixels.checked }));
 
 proxyEnabled.addEventListener('change', () => {
@@ -1113,12 +1187,18 @@ tx.addEventListener('blur', () => {
 });
 
 paintEvents.on('paint', (data) => {
-    console.log('data :>', data)
+    console.log('paint data :>', data)
     if (data.user.id) {
-        const userElement = $(`user-${data.user.id}`);
         try {
+            const userElement = $(`user-${data.user.id}`);
+            if (!userElement) throw new Error("User element not found");
             const expirationDate = data.expirationDate;
             let expirationStr = "?"
+
+            userElement.classList.add('painted');
+            setTimeout(() => {
+                userElement.classList.remove('painted');
+            }, 3000);
 
             if (expirationDate) {
                 const targetDate = new Date(expirationDate * 1000);
@@ -1136,6 +1216,12 @@ paintEvents.on('paint', (data) => {
             userElement.querySelector('.current-droplets').textContent = data.user.droplets || "0";
             userElement.querySelector('.expiration-string').textContent = expirationStr;
             userElement.querySelectorAll('.user-info > span').forEach(span => span.style.color = 'var(--success-color)');
+            localStorage.setItem(data.user.id, JSON.stringify({
+                user: data.user,
+                lastChecked: Date.now(),
+                expirationDate
+            }));
+            chargeManager.addUser(userElement, Math.floor(data.user.charges.count - data.pixelsPainted), data.user.charges.max);
         } catch (error) {
             console.error("Failed to update user element:", error);
         }

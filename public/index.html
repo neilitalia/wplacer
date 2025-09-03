@@ -121,6 +121,13 @@
                     </label>
                 </div>
                 <div class="setting-toggle">
+                    <label for="paintTransparentPixels">Paint transparent pixels</label>
+                    <label class="switch">
+                        <input id="paintTransparentPixels" name="paintTransparentPixels" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-toggle">
                     <label for="autoFarm">Auto farm (non-stop painting)</label>
                     <label class="switch">
                         <input id="autoFarm" name="autoFarm" type="checkbox">
@@ -183,10 +190,19 @@
                     <span class="slider"></span>
                 </label>
             </div>
+
             <div class="setting-toggle">
                 <label for="skipPaintedPixels">Skip other's painted pixels</label>
                 <label class="switch">
                     <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-toggle">
+                <label for="hideSensitiveLogs">Hide sensitive info on logs</label>
+                <label class="switch">
+                    <input id="hideSensitiveLogs" name="hideSensitiveLogs" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
@@ -255,6 +271,7 @@
         </div>
     </div>
 
+    <script src="scripts/charge-manager.js"></script>
     <script src="scripts/paint-events.js"></script>
     <script type="text/javascript" src="scripts/index.js"></script>
 </body>
